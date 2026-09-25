@@ -189,6 +189,14 @@ body {
   transition: all 0.2s ease;
 }
 
+.input-with-icon-left {
+  padding-left: 42px !important;
+}
+
+.input-with-icon-right {
+  padding-right: 44px !important;
+}
+
 .input-field:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);

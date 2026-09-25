@@ -91,28 +91,52 @@ export default function AuthPage() {
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                   <div className="relative">
-                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#64748b' }} />
-                    <input className="input-field pl-9" placeholder="Full Name" value={form.full_name}
-                      onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} required />
+                    <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748b' }} />
+                    <input 
+                      className="input-field input-with-icon-left" 
+                      style={{ paddingLeft: '42px' }}
+                      placeholder="Full Name" 
+                      value={form.full_name}
+                      onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} 
+                      required 
+                    />
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
             <div className="relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#64748b' }} />
-              <input className="input-field pl-9" type="email" placeholder="Email address" value={form.email}
-                onChange={e => setForm(p => ({ ...p, email: e.target.value }))} required />
+              <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748b' }} />
+              <input 
+                className="input-field input-with-icon-left" 
+                style={{ paddingLeft: '42px' }}
+                type="email" 
+                placeholder="Email address" 
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))} 
+                required 
+              />
             </div>
 
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#64748b' }} />
-              <input className="input-field pl-9 pr-10" type={showPassword ? 'text' : 'password'}
-                placeholder="Password" value={form.password}
-                onChange={e => setForm(p => ({ ...p, password: e.target.value }))} required minLength={8} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#64748b' }}>
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748b' }} />
+              <input 
+                className="input-field input-with-icon-left input-with-icon-right" 
+                style={{ paddingLeft: '42px', paddingRight: '44px' }}
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password" 
+                value={form.password}
+                onChange={e => setForm(p => ({ ...p, password: e.target.value }))} 
+                required 
+                minLength={8} 
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-white/5 transition-colors" 
+                style={{ color: '#64748b' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
 
@@ -123,6 +147,21 @@ export default function AuthPage() {
                 <><Zap size={18} /> {isLogin ? 'Sign In' : 'Create Account'}</>
               )}
             </button>
+
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => setForm({ email: 'demo@researchpilot.ai', password: 'password123', full_name: '' })}
+                className="w-full py-2 rounded-xl text-xs font-medium transition-all text-center"
+                style={{
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  color: '#818cf8',
+                  border: '1px dashed rgba(99, 102, 241, 0.35)',
+                }}
+              >
+                ⚡ Click to fill Demo Account (Dr. Alex Vance)
+              </button>
+            )}
           </form>
 
           {/* Features */}
