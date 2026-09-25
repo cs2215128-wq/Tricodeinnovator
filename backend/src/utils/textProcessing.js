@@ -9,7 +9,7 @@
  * @param {number} overlap - Overlap between chunks (default 150)
  * @returns {Array<{content: string, index: number, pageRef: string}>}
  */
-export const chunkText = (text, chunkSize = 800, overlap = 150) => {
+export const chunkText = (text, chunkSize = 800, overlap = 150, maxChunks = 150) => {
   if (!text || text.trim().length === 0) return [];
 
   const cleanText = text.replace(/\s+/g, ' ').trim();
@@ -17,33 +17,38 @@ export const chunkText = (text, chunkSize = 800, overlap = 150) => {
   let start = 0;
   let chunkIndex = 0;
 
-  while (start < cleanText.length) {
+  while (start < cleanText.length && chunks.length < maxChunks) {
     const end = Math.min(start + chunkSize, cleanText.length);
     let chunkContent = cleanText.slice(start, end);
 
-    // Try to break at sentence boundary
+    // Try to break at sentence boundary if not at the very end
     if (end < cleanText.length) {
       const lastPeriod = chunkContent.lastIndexOf('. ');
       const lastNewline = chunkContent.lastIndexOf('\n');
       const breakPoint = Math.max(lastPeriod, lastNewline);
-      if (breakPoint > chunkSize * 0.6) {
+      if (breakPoint > chunkSize * 0.5) {
         chunkContent = chunkContent.slice(0, breakPoint + 1);
       }
     }
 
-    chunks.push({
-      content: chunkContent.trim(),
-      index: chunkIndex,
-      // Estimate page number based on position (avg 3000 chars per page)
-      pageRef: `p.${Math.floor(start / 3000) + 1}`,
-    });
+    const trimmed = chunkContent.trim();
+    if (trimmed.length > 20) {
+      chunks.push({
+        content: trimmed,
+        index: chunkIndex,
+        // Estimate page number based on position (avg 3000 chars per page)
+        pageRef: `p.${Math.floor(start / 3000) + 1}`,
+      });
+      chunkIndex++;
+    }
 
-    chunkIndex++;
-    start += chunkContent.length - overlap;
+    // Guard: Ensure start always advances by at least max(1, half the chunkSize)
+    const forwardStep = Math.max(chunkContent.length - overlap, Math.floor(chunkSize / 2), 50);
+    start += forwardStep;
     if (start >= cleanText.length) break;
   }
 
-  return chunks.filter(c => c.content.length > 50);
+  return chunks;
 };
 
 /**
