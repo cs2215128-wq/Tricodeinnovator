@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { query } from '../db/database.js';
 import { generateToken } from '../middleware/auth.js';
@@ -51,10 +52,11 @@ router.post('/register', async (req, res) => {
     try {
       await client.query('BEGIN');
 
+      const userId = crypto.randomUUID();
       const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, full_name)
-         VALUES ($1, $2, $3) RETURNING id, email, full_name, created_at`,
-        [email.toLowerCase(), password_hash, full_name]
+        `INSERT INTO users (id, email, password_hash, full_name)
+         VALUES ($1, $2, $3, $4) RETURNING id, email, full_name, created_at`,
+        [userId, email.toLowerCase(), password_hash, full_name]
       );
 
       const user = userResult.rows[0];

@@ -166,6 +166,7 @@ export const initializeDatabase = async () => {
     // Register PostgreSQL built-in functions
     db.public.registerFunction({
       name: 'gen_random_uuid',
+      impure: true,
       implementation: () => crypto.randomUUID(),
     });
 

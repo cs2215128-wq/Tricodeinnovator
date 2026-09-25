@@ -9,5 +9,9 @@
     "dev:frontend": "cd frontend && npm run dev",
     "start:backend": "cd backend && npm start",
     "build:frontend": "cd frontend && npm run build"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.109.0"
   }
 }

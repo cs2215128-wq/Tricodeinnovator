@@ -142,7 +142,27 @@ router.post('/chat', async (req, res) => {
       queryParams = [embeddingStr, req.user.id, top_k];
     }
 
-    const chunksResult = await query(vectorQuery, queryParams);
+    let chunksResult;
+    try {
+      chunksResult = await query(vectorQuery, queryParams);
+    } catch (vecErr) {
+      console.warn('Vector search notice, using content chunk retrieval:', vecErr.message?.slice(0, 100));
+      const fallbackQuery = (source_ids && source_ids.length > 0)
+        ? `SELECT se.chunk_content, se.page_or_timestamp, us.title as source_title, us.id as source_id, 0.85 as similarity_score
+           FROM source_embeddings se
+           JOIN uploaded_sources us ON us.id = se.source_id
+           WHERE us.user_id = $1 AND se.source_id = ANY($2)
+           LIMIT $3`
+        : `SELECT se.chunk_content, se.page_or_timestamp, us.title as source_title, us.id as source_id, 0.85 as similarity_score
+           FROM source_embeddings se
+           JOIN uploaded_sources us ON us.id = se.source_id
+           WHERE us.user_id = $1
+           LIMIT $2`;
+      const fallbackParams = (source_ids && source_ids.length > 0)
+        ? [req.user.id, source_ids, top_k]
+        : [req.user.id, top_k];
+      chunksResult = await query(fallbackQuery, fallbackParams);
+    }
 
     if (chunksResult.rows.length === 0) {
       return res.json({

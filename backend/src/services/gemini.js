@@ -9,6 +9,33 @@ const apiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'you
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+// Preferred model fallback cascade
+const FLASH_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+
+/**
+ * Robust content generation with multi-model fallback and transient error retry
+ */
+const generateWithModelFallback = async (prompt, config = {}) => {
+  if (!ai) return null;
+
+  for (const model of FLASH_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config,
+      });
+      if (response && response.text) {
+        return response.text;
+      }
+    } catch (err) {
+      console.warn(`Model ${model} warning: ${err.message?.slice(0, 120)}`);
+      // If 503 high demand or 404, continue to next fallback model
+    }
+  }
+  return null;
+};
+
 /**
  * Deterministic pseudo-embedding for fallback/offline/demo mode (768 dimensions)
  */
@@ -21,7 +48,6 @@ const createDeterministicEmbedding = (text, dimensions = 768) => {
     const idx = Math.abs((hash + i * 31) % dimensions);
     embedding[idx] += 1.0 / (1 + (i % 10));
   }
-  // Normalize vector to unit length
   let norm = 0;
   for (let i = 0; i < dimensions; i++) {
     norm += embedding[i] * embedding[i];
@@ -31,18 +57,21 @@ const createDeterministicEmbedding = (text, dimensions = 768) => {
 };
 
 /**
- * Generate text embeddings using text-embedding-004 model (768 dimensions)
+ * Generate text embeddings using gemini-embedding-001 with 768 dimensions
  */
 export const generateEmbedding = async (text) => {
   if (ai) {
     try {
       const response = await ai.models.embedContent({
-        model: 'text-embedding-004',
+        model: 'gemini-embedding-001',
         contents: text.substring(0, 8192),
+        config: { outputDimensionality: 768 },
       });
-      return response.embeddings[0].values;
+      if (response?.embeddings?.[0]?.values) {
+        return response.embeddings[0].values;
+      }
     } catch (error) {
-      console.warn('Gemini embedding API error, falling back to deterministic embedding:', error.message);
+      console.warn('Gemini embedding notice, falling back to deterministic embedding:', error.message?.slice(0, 100));
     }
   }
   return createDeterministicEmbedding(text, 768);
@@ -71,12 +100,10 @@ export const generateBatchEmbeddings = async (texts) => {
 };
 
 /**
- * Extract structured metadata from research content using Gemini Flash
+ * Extract structured metadata from research content
  */
 export const extractResearchMetadata = async (text, title) => {
-  if (ai) {
-    try {
-      const prompt = `You are an expert research analyst. Analyze the following academic text and extract structured metadata.
+  const prompt = `You are an expert research analyst. Analyze the following academic text and extract structured metadata.
 
 Title: ${title}
 
@@ -97,16 +124,13 @@ Return a valid JSON object with this exact structure:
 
 Return ONLY the JSON object, no markdown, no explanation.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-
-      const rawText = response.text.trim();
+  const rawText = await generateWithModelFallback(prompt);
+  if (rawText) {
+    try {
       const jsonStr = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(jsonStr);
-    } catch (error) {
-      console.warn('Gemini metadata extraction notice:', error.message);
+    } catch (e) {
+      console.warn('Failed parsing Gemini metadata JSON, using heuristic fallback');
     }
   }
 
@@ -140,9 +164,7 @@ export const ragChat = async (question, contextChunks, sourceTitle) => {
     .map(c => `[${c.source_title || sourceTitle || 'Source'}, ${c.page_or_timestamp || 'Section 1'}]: ${c.chunk_content}`)
     .join('\n\n---\n\n');
 
-  if (ai) {
-    try {
-      const prompt = `You are ResearchPilot AI, a precise academic research assistant. Answer the user's question using ONLY the provided context chunks. 
+  const prompt = `You are ResearchPilot AI, a precise academic research assistant. Answer the user's question using ONLY the provided context chunks. 
 
 CRITICAL RULES:
 1. Every factual claim MUST have an inline citation in format: [Document Title, Page/Timestamp]
@@ -157,15 +179,9 @@ USER QUESTION: ${question}
 
 Provide a well-structured answer with inline citations:`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-
-      return response.text;
-    } catch (error) {
-      console.warn('Gemini RAG chat notice, using grounded fallback synthesis:', error.message);
-    }
+  const aiText = await generateWithModelFallback(prompt);
+  if (aiText) {
+    return aiText;
   }
 
   // Grounded fallback synthesis citing real chunks
@@ -188,9 +204,7 @@ export const analyzeResearchGaps = async (limitationsArray) => {
     .map((l, i) => `Paper ${i + 1} - "${l.title}": ${l.limitations}`)
     .join('\n\n');
 
-  if (ai) {
-    try {
-      const prompt = `You are an expert research strategist. Analyze the following limitations from multiple research papers and identify systemic research gaps. Then propose actionable research directions.
+  const prompt = `You are an expert research strategist. Analyze the following limitations from multiple research papers and identify systemic research gaps. Then propose actionable research directions.
 
 PAPER LIMITATIONS:
 ${limitationsText}
@@ -210,16 +224,13 @@ Return a valid JSON array with exactly 3 research gap proposals:
 
 Return ONLY the JSON array, no markdown, no explanation.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-
-      const rawText = response.text.trim();
+  const rawText = await generateWithModelFallback(prompt);
+  if (rawText) {
+    try {
       const jsonStr = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(jsonStr);
-    } catch (error) {
-      console.warn('Gemini research gap notice:', error.message);
+    } catch (e) {
+      console.warn('Failed parsing gap analysis JSON, falling back to structured synthesis');
     }
   }
 
@@ -262,9 +273,7 @@ Return ONLY the JSON array, no markdown, no explanation.`;
 export const generateCourseStructure = async (topic, sourceTexts) => {
   const combinedText = sourceTexts.join('\n\n---\n\n').substring(0, 20000);
 
-  if (ai) {
-    try {
-      const prompt = `You are an expert educational content designer. Create a comprehensive, adaptive learning course from the following research material.
+  const prompt = `You are an expert educational content designer. Create a comprehensive, adaptive learning course from the following research material.
 
 TOPIC: ${topic}
 MATERIAL: ${combinedText}
@@ -319,17 +328,13 @@ Generate a complete course as a JSON object:
 Create at least 2 modules with 2 lessons each, 3 flashcards each, and 3 quiz questions each.
 Return ONLY the JSON object, no markdown, no explanation.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-        config: { maxOutputTokens: 8192 },
-      });
-
-      const rawText = response.text.trim();
+  const rawText = await generateWithModelFallback(prompt, { maxOutputTokens: 8192 });
+  if (rawText) {
+    try {
       const jsonStr = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(jsonStr);
-    } catch (error) {
-      console.warn('Gemini course generation notice:', error.message);
+    } catch (e) {
+      console.warn('Failed parsing course structure JSON, using curriculum fallback');
     }
   }
 
@@ -398,9 +403,7 @@ Return ONLY the JSON object, no markdown, no explanation.`;
  * Scrape and summarize web content
  */
 export const summarizeWebContent = async (url, rawText) => {
-  if (ai) {
-    try {
-      const prompt = `Summarize and extract key information from this web page content for academic research purposes.
+  const prompt = `Summarize and extract key information from this web page content for academic research purposes.
 
 URL: ${url}
 CONTENT: ${rawText.substring(0, 10000)}
@@ -418,16 +421,13 @@ Return JSON:
 
 Return ONLY the JSON object.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-
-      const rawText2 = response.text.trim();
-      const jsonStr = rawText2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const aiText = await generateWithModelFallback(prompt);
+  if (aiText) {
+    try {
+      const jsonStr = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(jsonStr);
-    } catch (error) {
-      console.warn('Gemini web summarization notice:', error.message);
+    } catch (e) {
+      console.warn('Failed parsing web summary JSON');
     }
   }
 

@@ -25,7 +25,7 @@ const storeSourceChunks = async (sourceId, chunks, embeddings) => {
     const embeddingStr = `[${embedding.join(',')}]`;
     return query(
       `INSERT INTO source_embeddings (source_id, chunk_content, page_or_timestamp, embedding)
-       VALUES ($1, $2, $3, $4::vector)`,
+       VALUES ($1, $2, $3, $4)`,
       [sourceId, chunk.content, chunk.pageRef, embeddingStr]
     );
   });
